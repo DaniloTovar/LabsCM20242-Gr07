@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Labs20242-Gr07</string>
+    <string name="search_placeholder">Search your favorite song</string>
+    <string name="search_icon">Search</string>
+    <string name="card_title">Title</string>
+    <string name="card_genre">Genre</string>
+    <string name="card_duration">Duration</string>
+    <string name="card_streamable">Streamable</string>
 </resources>

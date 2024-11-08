@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Labs20242-Gr07</string>
+    <string name="search_placeholder">Busca tu canción favorita</string>
+    <string name="search_icon">Buscar</string>
+    <string name="card_title">Titulo</string>
+    <string name="card_genre">Genero</string>
+    <string name="card_duration">Duracion</string>
+    <string name="card_streamable">Reproducible</string>
 </resources>
