@@ -7,10 +7,19 @@ import retrofit2.HttpException
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import android.os.Environment
-import co.edu.udea.compumovil.gr07_20242.lab2.playTrack
+import android.util.Log
+import androidx.work.workDataOf
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
+import okio.IOException
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class StreamTrackWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context,parameters) {
 
@@ -20,9 +29,18 @@ class StreamTrackWorker(context: Context, parameters: WorkerParameters) : Corout
         val baseUrl = inputData.getString("BASE_URL") ?: Result.failure()
         val trackId = inputData.getString("TRACK_ID") ?: Result.failure()
 
+        // Getting path to stream MP3 file
+        val path = fetchBlobContentAndPlay(context, "$baseUrl/v1/tracks/$trackId/stream")
+
         return try{
-            fetchBlobContentAndPlay(context, "$baseUrl/v1/tracks/$trackId/stream")
-            Result.success()
+            if (path.isNotEmpty()){
+                val output = workDataOf(
+                    "PATH" to path
+                )
+                Result.success(output)
+            } else{
+                Result.failure()
+            }
         } catch (e: HttpException){
             Result.retry()
         } catch (e: Exception){
@@ -31,31 +49,35 @@ class StreamTrackWorker(context: Context, parameters: WorkerParameters) : Corout
     }
 }
 
-fun fetchBlobContentAndPlay(context: Context, blobUrl: String) {
+suspend fun fetchBlobContentAndPlay(context: Context, blobUrl: String): String {
     val client = OkHttpClient()
     val request = Request.Builder().url(blobUrl).build()
 
-    client.newCall(request).enqueue(object : okhttp3.Callback {
-        override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
-            e.printStackTrace()
-        }
-
-        override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
-            if (!response.isSuccessful) {
-                throw java.io.IOException("Unexpected code $response")
+    return suspendCancellableCoroutine { continuation ->
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+                continuation.resumeWithException(e) // Resume with exception on failure
             }
 
-            val inputStream: InputStream = response.body!!.byteStream()
-            val file = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "streamed_audio.mp3")
-            val outputStream = FileOutputStream(file)
-
-            inputStream.use { input ->
-                outputStream.use { output ->
-                    input.copyTo(output)
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    continuation.resumeWithException(IOException("Unexpected code $response"))
                 }
-            }
 
-            playTrack(file.absolutePath)
-        }
-    })
+                val inputStream: InputStream = response.body!!.byteStream()
+                val file = File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "streamed_audio.mp3")
+                val outputStream = FileOutputStream(file)
+
+                inputStream.use { input ->
+                    outputStream.use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                println("pathStreamUrl ${file.absolutePath}")
+                continuation.resume(file.absolutePath) // Resume with the file path
+            }
+        })
+    }
 }
+

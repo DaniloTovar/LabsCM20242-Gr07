@@ -2,7 +2,6 @@ package co.edu.udea.compumovil.gr07_20242.lab2
 
 import android.content.Context
 import android.content.res.Resources
-import android.media.MediaPlayer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,31 +14,52 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import co.edu.udea.compumovil.gr07_20242.lab2.api.Track.TrackData
 import co.edu.udea.compumovil.gr07_20242.lab2.workers.StreamTrackWorker
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.launch
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 @Composable
-fun TrackList(tracks: List<TrackData>, resources: Resources, context: Context) {
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+fun TrackList(
+    tracks: List<TrackData>,
+    modifier: Modifier,
+    onTrackSelected: (TrackData,String)->Unit
+) {
+    LazyColumn(modifier = modifier.fillMaxWidth()) {
         items(tracks) { track ->
-            TrackCard(track, resources, context)
+            val context = LocalContext.current
+            val resources = context.resources
+            TrackCard(track, resources, context, onTrackSelected)
         }
     }
 }
 
 @Composable
-fun TrackCard(track: TrackData, resources: Resources, context: Context) {
+fun TrackCard(track: TrackData, resources: Resources, context: Context, onTrackSelected: (TrackData, String) -> Unit) {
+    val coroutineScope = rememberCoroutineScope()
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)
             .clickable {
-                onClickTracks(context=context, endpoint, track)
+                coroutineScope.launch {
+                    val streamUrl = onClickTracks(context = context, endpoint = endpoint, trackData = track)
+
+                    if (streamUrl != null){
+                        onTrackSelected(track,streamUrl)
+                    }else{
+                        println(resources.getString(R.string.stream_url_null))
+                    }
+                }
             },
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
@@ -61,7 +81,7 @@ fun TrackCard(track: TrackData, resources: Resources, context: Context) {
     }
 }
 
-fun onClickTracks(context: Context, endpoint: String, trackData: TrackData){
+suspend fun onClickTracks(context: Context, endpoint: String, trackData: TrackData):String?{
     val data = Data.Builder()
         .putString("BASE_URL", endpoint)
         .putString("TRACK_ID", trackData.id)
@@ -72,16 +92,17 @@ fun onClickTracks(context: Context, endpoint: String, trackData: TrackData){
         .build()
 
     WorkManager.getInstance(context).enqueue(streamTrackWorkRequest)
-}
 
-fun playTrack(streamUrl: String) {
-    val mediaPlayer = MediaPlayer().apply {
-        setDataSource(streamUrl)
-        prepare()
-        start()
-    }
-    mediaPlayer.setOnCompletionListener {
-        it.release()
+    return suspendCoroutine { continuation ->
+        WorkManager.getInstance(context).getWorkInfoByIdLiveData(streamTrackWorkRequest.id)
+            .observeForever{ workInfo ->
+                if (workInfo!=null && workInfo.state.isFinished){
+                    val path = workInfo.outputData.getString("PATH")
+                    continuation.resume(path)
+                } else if (workInfo != null && (workInfo.state == WorkInfo.State.FAILED)) {
+                    continuation.resume(null)
+                }
+            }
     }
 }
 

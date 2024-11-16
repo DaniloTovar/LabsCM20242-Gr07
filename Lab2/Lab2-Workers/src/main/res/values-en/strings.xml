@@ -7,4 +7,8 @@
     <string name="card_genre">Genre</string>
     <string name="card_duration">Duration</string>
     <string name="card_streamable">Streamable</string>
+    <string name="card_play_button">Play</string>
+    <string name="card_stop_button">Stop</string>
+    <string name="card_pause_button">Pause</string>
+    <string name="stream_url_null">Error: streamUrl is null</string>
 </resources>

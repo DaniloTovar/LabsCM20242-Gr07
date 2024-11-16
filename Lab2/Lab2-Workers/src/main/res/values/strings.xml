@@ -6,4 +6,8 @@
     <string name="card_genre">Genero</string>
     <string name="card_duration">Duracion</string>
     <string name="card_streamable">Reproducible</string>
+    <string name="card_play_button">Reproducir</string>
+    <string name="card_stop_button">Parar</string>
+    <string name="card_pause_button">Pausar</string>
+    <string name="stream_url_null">Error: streamUrl es nulo</string>
 </resources>
